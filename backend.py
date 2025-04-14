@@ -309,10 +309,17 @@ async def validate_column(request: ColumnValidationRequest):
         
         # df = app.state.current_dataframe
         s = ""
+        c = request.column
         for i in request.rules:
-            s += f"rule type: {Rule.rule_type}, Values: {Rule.value}"
-        rule_l = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
-        results = check_consistency(dfc.df, rule_l)
+            s += f"rule type: {i.rule_type}, Column Name: {c}, Values: {i.value}"
+        rule_string = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
+        # print(rule_l.split(','))
+        rule_string = "{" + rule_string + "}"
+        rule_d = eval(rule_string)
+        print(dfc.df.head())
+        results = check_consistency(dfc.df, rule_d)
+        # print(rule_l, True)
+        print(results)
         # results = apply_validation_rules(df, request.column, request.dataType, request.rules)
         
         return {'success': True, 'data': clean_for_json(results)}
