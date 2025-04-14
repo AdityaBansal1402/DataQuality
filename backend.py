@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Body
 from fastapi.responses import JSONResponse
 import pandas as pd
 import numpy as np
@@ -8,7 +8,7 @@ from typing import Dict, List, Any
 from collections import defaultdict
 import math
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, RootModel
 from typing import List, Optional, Union
 from gem import GemBot, sys_text
 
@@ -45,6 +45,10 @@ class Rule(BaseModel):
 class ColumnValidationRequest(BaseModel):
     column: str
     dataType: str
+    rules: List[Rule]
+
+class ColumnRules(BaseModel):
+    type: str
     rules: List[Rule]
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -294,10 +298,10 @@ async def analyze_csv(file: UploadFile = File(...)):
         return {'success': False, "error": str(e)}
         # raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
-@app.post("/validate", response_class=JSONResponse)
-async def validate_column(request: ColumnValidationRequest):
+@app.post("/validate")
+async def validate_column(request: Request):
     """
-    Apply validation rules to a specific column in the current dataset.
+    Apply validation rules to a specific column in the current dataset. : ColumnValidationRequest
     """
     try:
         # This endpoint assumes you've already loaded the data somewhere
@@ -308,13 +312,24 @@ async def validate_column(request: ColumnValidationRequest):
         #     return {'success': False, 'error': 'No data loaded. Please upload a file first.'}
         
         # df = app.state.current_dataframe
+        data = await request.json()  # Get the actual JSON from the request
+
         s = ""
-        c = request.column
-        for i in request.rules:
-            s += f"rule type: {i.rule_type}, Column Name: {c}, Values: {i.value}"
+        for column_name, rules_info in data.items():
+            rule_list = rules_info.get("rules", [])
+            for i in rule_list:
+                rule_type = i.get("type")
+                value = i.get("value")
+                s += f"rule type: {rule_type}, Column Name: {column_name}, Values: {value},\n"
+
+        # print("Collected rule string:\n", s)
+
         rule_string = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
         rule_string = "{" + rule_string + "}"
+
         rule_d = eval(rule_string)
+        print(rule_d)
+
         results = check_consistency(dfc.df, rule_d)
         # results = apply_validation_rules(df, request.column, request.dataType, request.rules)
         

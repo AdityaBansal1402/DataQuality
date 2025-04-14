@@ -119,7 +119,7 @@ function TableView() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formattedRules),
+        body: JSON.stringify(savedRules),
       });
   
       const result = await response.json();
