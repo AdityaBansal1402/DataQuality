@@ -49,13 +49,25 @@ function TableView() {
   // };
 
   const handleRuleRemoval = (index,column) => {
-
+    const updatedRules = savedRules[column].rules.filter((_, i) => i !== index);
+    setSavedRules((prev) => ({
+      ...prev,
+      [column]: {
+        ...prev[column],
+        rules: updatedRules.length > 0 ? updatedRules : [{ type: "", value: "" }],
+      },
+    }));
+    //if saved rules are empty, remove it from savedRules
+    if (updatedRules.length === 0) {
+      const { [column]: _, ...rest } = savedRules;
+      setSavedRules(rest);
+    }
   }
 
-  const handleRemoveRule = (indexToRemove) => {
-    const updatedRules = rules.filter((_, i) => i !== indexToRemove);
-    setRules(updatedRules.length > 0 ? updatedRules : [{ type: "", value: "" }]);
-  };
+  // const handleRemoveRule = (indexToRemove) => {
+  //   const updatedRules = rules.filter((_, i) => i !== indexToRemove);
+  //   setRules(updatedRules.length > 0 ? updatedRules : [{ type: "", value: "" }]);
+  // };
 
   const handleRuleTypeChange = (index, value) => {
     const updated = [...rules];
@@ -198,12 +210,12 @@ function TableView() {
                           </option>
                         ))}
                       </select>
-                      <button
+                      {/* <button
                         className="text-red-500 hover:text-red-700 text-lg font-bold"
                         onClick={() => handleRemoveRule(index)}
                       >
                         ❌
-                      </button>
+                      </button> */}
                     </div>
 
                     {["range", "between"].includes(rule.type) ? (
