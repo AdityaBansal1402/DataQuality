@@ -6,11 +6,13 @@ import Papa from "papaparse";
 function TableView() {
   const location = useLocation();
   const file = location.state?.file;
+
   const [columns, setColumns] = useState([]);
   const [rows, setRows] = useState([]);
   const [selectedColumn, setSelectedColumn] = useState("");
   const [selectedType, setSelectedType] = useState("");
   const [rules, setRules] = useState([{ type: "", value: "" }]);
+  const [savedRules, setSavedRules] = useState({}); // { column: { type, rules } }
 
   const ruleOptions = {
     string: ["not_null", "contains", "starts_with", "ends_with"],
@@ -21,9 +23,7 @@ function TableView() {
 
   useEffect(() => {
     if (!file) return;
-
     const reader = new FileReader();
-
     reader.onload = (e) => {
       const fileType = file.name.split(".").pop();
       if (fileType === "csv") {
@@ -34,21 +34,19 @@ function TableView() {
         }
       } else if (fileType === "xlsx") {
         const workbook = XLSX.read(e.target.result, { type: "binary" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         if (sheet.length > 0) {
           setColumns(Object.keys(sheet[0]));
           setRows(sheet);
         }
       }
     };
-
     reader.readAsBinaryString(file);
   }, [file]);
 
-  const handleAddRule = () => {
-    setRules([...rules, { type: "", value: "" }]);
-  };
+  // const handleAddRule = () => {
+  //   setRules([...rules, { type: "", value: "" }]);
+  // };
 
   const handleRemoveRule = (indexToRemove) => {
     const updatedRules = rules.filter((_, i) => i !== indexToRemove);
@@ -58,7 +56,7 @@ function TableView() {
   const handleRuleTypeChange = (index, value) => {
     const updated = [...rules];
     updated[index].type = value;
-    updated[index].value = ""; // reset value on rule type change
+    updated[index].value = "";
     setRules(updated);
   };
 
@@ -68,16 +66,42 @@ function TableView() {
     setRules(updated);
   };
 
+  const handleSaveRule = () => {
+    if (!selectedColumn || !selectedType) return;
+  
+    const cleanedRules = rules.filter(
+      (r) => r.type && (r.type === "not_null" || r.value)
+    );
+  
+    setSavedRules((prev) => {
+      const existingRules = prev[selectedColumn]?.rules || [];
+      return {
+        ...prev,
+        [selectedColumn]: {
+          type: selectedType,
+          rules: [...existingRules, ...cleanedRules],  
+        },
+      };
+    });
+    setRules([{ type: "", value: "" }]);
+  };
+
+  // Submit and fetch rules
   const handleSubmit = async () => {
+    const columnRules = savedRules[selectedColumn].rules || [];
+  
     alert(
-      `Column: ${selectedColumn}\nType: ${selectedType}\nRules:\n${rules
+      `Column: ${selectedColumn}\nType: ${selectedType}\nRules:\n${columnRules
         .map((r) => `- ${r.type} ${r.value ? `: ${r.value}` : ""}`)
         .join("\n")}`
     );
+    console.log("Submitting rules:", columnRules);
+  
     const formattedRules = {
       column: selectedColumn,
       dataType: selectedType,
-      rules: rules.filter(r => r.type && (r.type === "not_null" || r.value))
+      rules: columnRules
+        .filter(r => r.type && (r.type === "not_null" || r.value))
         .map(r => ({
           rule_type: r.type,
           value: r.value
@@ -92,13 +116,12 @@ function TableView() {
         },
         body: JSON.stringify(formattedRules),
       });
-
+  
       const result = await response.json();
-      
+  
       if (result.success) {
         alert("Validation completed! Check the console for results.");
         console.log(result.data);
-        // Here you could display the validation results in the UI
       } else {
         alert(`Error: ${result.error || "Unknown error"}`);
       }
@@ -107,10 +130,12 @@ function TableView() {
       console.error("Error submitting rules:", error);
     }
   };
+  
+
 
   return (
     <div className="h-screen flex bg-gray-100">
-      {/* Left Side: Configurator */}
+      {/* Left Panel */}
       <div className="w-1/4 bg-white shadow-md p-4 overflow-auto">
         <h3 className="text-lg font-semibold mb-4">Configure Column</h3>
 
@@ -120,8 +145,8 @@ function TableView() {
           value={selectedColumn}
           onChange={(e) => {
             setSelectedColumn(e.target.value);
-            setSelectedType("");
-            setRules([{ type: "", value: "" }]);
+            setSelectedType(savedRules[e.target.value]?.type || "");
+            setRules(savedRules[e.target.value]?.rules || [{ type: "", value: "" }]);
           }}
         >
           <option value="">-- Choose Column --</option>
@@ -176,13 +201,11 @@ function TableView() {
                       </button>
                     </div>
 
-                    {/* Input for rules that require values */}
                     {["range", "between"].includes(rule.type) ? (
                       <div className="flex gap-2">
                         <input
                           className="w-1/2 p-2 border rounded"
                           placeholder="Min"
-                          type="text"
                           value={rule.value.split(",")[0] || ""}
                           onChange={(e) =>
                             handleRuleValueChange(index, `${e.target.value},${rule.value.split(",")[1] || ""}`)
@@ -191,7 +214,6 @@ function TableView() {
                         <input
                           className="w-1/2 p-2 border rounded"
                           placeholder="Max"
-                          type="text"
                           value={rule.value.split(",")[1] || ""}
                           onChange={(e) =>
                             handleRuleValueChange(index, `${rule.value.split(",")[0] || ""},${e.target.value}`)
@@ -202,7 +224,6 @@ function TableView() {
                       <input
                         className="w-full p-2 border rounded mt-1"
                         placeholder="Enter value"
-                        type="text"
                         value={rule.value}
                         onChange={(e) => handleRuleValueChange(index, e.target.value)}
                       />
@@ -210,26 +231,53 @@ function TableView() {
                   </div>
                 ))}
 
-                <button
+                {/* <button
                   onClick={handleAddRule}
-                  className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded mb-4"
+                  className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 px-2 rounded mb-2"
                 >
                   + Add Rule
-                </button>
+                </button> */}
 
                 <button
-                  onClick={handleSubmit}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded"
+                  onClick={handleSaveRule}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
                 >
-                  Submit
+                  ✅ Save Rule
                 </button>
               </>
             )}
           </>
         )}
+
+        {Object.keys(savedRules).length > 0 && (
+          <div className="mt-6 border-t pt-4">
+            <h4 className="text-md font-semibold mb-2">Saved Rules</h4>
+            {Object.entries(savedRules).map(([column, data]) => (
+              <div key={column} className="border rounded-lg p-3 mb-3 bg-gray-50">
+                <h5 className="font-bold text-blue-700">{column}</h5>
+                <p className="text-sm text-gray-600 italic">Type: {data.type}</p>
+                <ul className="list-disc list-inside mt-1 text-sm text-gray-800">
+                  {data.rules.map((r, i) => (
+                    <li key={i}>
+                      {r.type} {r.value && `: ${r.value}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          onClick={handleSubmit}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded mt-4"
+        >
+          Submit Validation
+        </button>
       </div>
 
-      {/* Right Side: Table Viewer */}
+      {/* Right Panel */}
       <div className="w-3/4 p-4 overflow-auto">
         <div className="overflow-auto max-h-[80vh] bg-white shadow-md rounded-lg">
           <table className="w-full border-collapse">
@@ -260,6 +308,7 @@ function TableView() {
       </div>
     </div>
   );
+  
 }
 
 export default TableView;
