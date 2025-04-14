@@ -8,9 +8,18 @@ from typing import Dict, List, Any
 from collections import defaultdict
 import math
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional, Union
+from gem import GemBot, sys_text
+
+class dframe(BaseModel):
+    df: pd.DataFrame
 
 app = FastAPI(title="Data Quality API",
               description="API for running data quality checks on CSV files")
+g1 = GemBot()
+g1.system(sys_text)
+dfc = dframe()
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,7 +29,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Custom JSON encoder to handle NaN, inf, -inf
+class Rule(BaseModel):
+    rule_type: str
+    value: Optional[str] = None
+
+class ColumnValidationRequest(BaseModel):
+    column: str
+    dataType: str
+    rules: List[Rule]
+
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, float):
@@ -246,10 +263,9 @@ async def analyze_csv(file: UploadFile = File(...)):
         # Read the CSV file into a pandas DataFrame
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
-        print(df["Salary"])
-        print(df.loc[df["boolean"].apply(lambda x: isinstance(x, (bool))), "boolean"])
-
-
+        dfc.df = df
+        
+        # app.state.current_dataframe = df
 
         # Run all data quality checks
         results = run_data_quality_checks(df)
@@ -268,6 +284,32 @@ async def analyze_csv(file: UploadFile = File(...)):
     except Exception as e:
         return {'success': False, "error": str(e)}
         # raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+@app.post("/validate", response_class=JSONResponse)
+async def validate_column(request: ColumnValidationRequest):
+    """
+    Apply validation rules to a specific column in the current dataset.
+    """
+    try:
+        # This endpoint assumes you've already loaded the data somewhere
+        # You need to either store the DataFrame or pass the file again
+        
+        # For demonstration, let's create a function that applies rules
+        # if not hasattr(app.state, "current_dataframe") or app.state.current_dataframe is None:
+        #     return {'success': False, 'error': 'No data loaded. Please upload a file first.'}
+        
+        # df = app.state.current_dataframe
+        s = ""
+        for i in request.rules:
+            s += f"rule type: {Rule.rule_type}, Values: {Rule.value}"
+        rule_l = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
+        results = check_consistency(dfc.df, rule_l)
+        # results = apply_validation_rules(df, request.column, request.dataType, request.rules)
+        
+        return {'success': True, 'data': clean_for_json(results)}
+    
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
 
 @app.post("/analyze/custom", response_class=JSONResponse)
 async def analyze_csv_custom(

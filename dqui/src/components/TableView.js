@@ -68,12 +68,44 @@ function TableView() {
     setRules(updated);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     alert(
       `Column: ${selectedColumn}\nType: ${selectedType}\nRules:\n${rules
         .map((r) => `- ${r.type} ${r.value ? `: ${r.value}` : ""}`)
         .join("\n")}`
     );
+    const formattedRules = {
+      column: selectedColumn,
+      dataType: selectedType,
+      rules: rules.filter(r => r.type && (r.type === "not_null" || r.value))
+        .map(r => ({
+          rule_type: r.type,
+          value: r.value
+        }))
+    };
+  
+    try {
+      const response = await fetch('http://localhost:8000/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formattedRules),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert("Validation completed! Check the console for results.");
+        console.log(result.data);
+        // Here you could display the validation results in the UI
+      } else {
+        alert(`Error: ${result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      alert(`Failed to submit rules: ${error.message}`);
+      console.error("Error submitting rules:", error);
+    }
   };
 
   return (
