@@ -1,10 +1,10 @@
 import json
 import os
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama.llms import OllamaLLM
-from docx import Document
-import pdfplumber
-import pytesseract
+# from langchain_ollama.llms import OllamaLLM
+# from docx import Document
+# import pdfplumber
+# import pytesseract
 from PIL import Image
 import google.generativeai as genai
 from flask import Flask, render_template, request, jsonify
@@ -117,7 +117,7 @@ Arbitray Rule Name/ Rule Number: lambda row:...
 
 cb1.system(sys_text)
 
-with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
-    x = f.read()
+# with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
+#     x = f.read()
 
-print(cb1.gen_out(f"{x}. Read this file and generate appropriate business rules."))
+# print(cb1.gen_out(f"{x}. Read this file and generate appropriate business rules."))

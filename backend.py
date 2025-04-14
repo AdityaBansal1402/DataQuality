@@ -8,18 +8,27 @@ from typing import Dict, List, Any
 from collections import defaultdict
 import math
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Union
 from gem import GemBot, sys_text
 
 class dframe(BaseModel):
     df: pd.DataFrame
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
 app = FastAPI(title="Data Quality API",
               description="API for running data quality checks on CSV files")
 g1 = GemBot()
 g1.system(sys_text)
-dfc = dframe()
+
+temp_df = pd.DataFrame({
+    "a": [1, 2],
+    "b": [1, 2]
+})
+
+dfc = dframe(df = temp_df)
 
 app.add_middleware(
     CORSMiddleware,
