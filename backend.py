@@ -2,15 +2,13 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Body
 from fastapi.responses import JSONResponse
 import pandas as pd
 import numpy as np
-import io
-import json
+import io, ast, re, json, math
 from typing import Dict, List, Any
 from collections import defaultdict
-import math
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, RootModel
 from typing import List, Optional, Union
-from gem import GemBot, sys_text
+from gem import GemBot, sys_text, sys_text_1
 
 class dframe(BaseModel):
     df: pd.DataFrame
@@ -22,6 +20,8 @@ app = FastAPI(title="Data Quality API",
               description="API for running data quality checks on CSV files")
 g1 = GemBot()
 g1.system(sys_text)
+g2 = GemBot()
+g2.system(sys_text_1)
 
 temp_df = pd.DataFrame({
     "a": [1, 2],
@@ -89,6 +89,22 @@ def clean_for_json(obj):
         return clean_for_json(obj.tolist())
     else:
         return str(obj)  # Convert other types to string
+    
+def clean_json_string(messy_string):
+    # 1. Unescape \n if it's literally a backslash followed by n
+    messy_string = messy_string.replace("\\n", "\n")
+
+    # 2. Remove any Markdown-style ```json...``` wrappers
+    messy_string = re.sub(r"^```json\s*", "", messy_string)
+    messy_string = re.sub(r"\s*```$", "", messy_string)
+
+    # 3. Remove anything **after the last closing brace**
+    # This is your actual fix for "Extra data"
+    last_brace = messy_string.rfind("}")
+    if last_brace != -1:
+        messy_string = messy_string[:last_brace + 1]
+
+    return messy_string.strip()
 
 def detect_missing_values(df):
     """Find missing values in each column."""
@@ -278,8 +294,12 @@ async def analyze_csv(file: UploadFile = File(...)):
         df = pd.read_excel(io.BytesIO(contents))
         dfc.df = df
         
-        # app.state.current_dataframe = df
+        gen_rule = g2.gen_out(f"For the following dataframe, please return rules in formatted form:{df}")
+        # gen_rule = "{" + gen_rule + "}"
 
+        cleaned = clean_json_string(gen_rule)
+        gen_rule = json.loads(cleaned)
+        print(gen_rule)
         # Run all data quality checks
         results = run_data_quality_checks(df)
         # Add basic file info to the results
@@ -287,7 +307,8 @@ async def analyze_csv(file: UploadFile = File(...)):
             "filename": file.filename,
             "rows": len(df),
             "columns": len(df.columns),
-            "column_names": df.columns.tolist()
+            "column_names": df.columns.tolist(),
+            "gen_rule": gen_rule
         }
         
         # Ensure the response is JSON serializable

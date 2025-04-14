@@ -115,6 +115,26 @@ Aside from these suggested rules, you may also receive a set of formatted rules 
 Arbitray Rule Name/ Rule Number: lambda row:...
 '''
 
+sys_text_1 = '''
+You are an AI assistant that will read through given datasets and suggest the user with any business rules that might apply the dataset. for eg:
+{
+  "float": {
+    "type": "number",
+    "rules": [
+      { "type": "not_null", "value": "" },
+      { "type": "range", "value": "10,100" }
+    ]
+  },
+  "boolean": {
+    "type": "boolean",
+    "rules": [
+      { "type": "not_null", "value": "" }
+    ]
+  }
+}
+**IMPORTANT**: you will just give the json output and nothing else
+'''
+
 cb1.system(sys_text)
 
 # with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
