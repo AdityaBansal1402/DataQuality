@@ -48,6 +48,10 @@ function TableView() {
   //   setRules([...rules, { type: "", value: "" }]);
   // };
 
+  const handleRuleRemoval = (index,column) => {
+
+  }
+
   const handleRemoveRule = (indexToRemove) => {
     const updatedRules = rules.filter((_, i) => i !== indexToRemove);
     setRules(updatedRules.length > 0 ? updatedRules : [{ type: "", value: "" }]);
@@ -89,6 +93,7 @@ function TableView() {
   // Submit and fetch rules
   const handleSubmit = async () => {
     const columnRules = savedRules[selectedColumn].rules || [];
+    console.log(savedRules)
   
     alert(
       `Column: ${selectedColumn}\nType: ${selectedType}\nRules:\n${columnRules
@@ -260,6 +265,7 @@ function TableView() {
                   {data.rules.map((r, i) => (
                     <li key={i}>
                       {r.type} {r.value && `: ${r.value}`}
+                      <button onClick={()=>handleRuleRemoval(i,column)}>❌</button>
                     </li>
                   ))}
                 </ul>
