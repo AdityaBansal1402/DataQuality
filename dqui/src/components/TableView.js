@@ -103,7 +103,7 @@ function TableView() {
       rules: columnRules
         .filter(r => r.type && (r.type === "not_null" || r.value))
         .map(r => ({
-          rule_type: r.type,
+          rule_name: r.type,
           value: r.value
         }))
     };

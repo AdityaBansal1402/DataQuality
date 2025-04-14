@@ -273,6 +273,10 @@ async def analyze_csv(file: UploadFile = File(...)):
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
         dfc.df = df
+        gen_rule = g1.gen_out(f'''The following is the dataframe, read it and generate approprate rules in the format 2. Dataframe:\n{dfc.df}''')
+        print(gen_rule)
+        gen_rule = gen_rule
+        gen_d = eval(gen_rule)
         
         # app.state.current_dataframe = df
 
@@ -283,7 +287,8 @@ async def analyze_csv(file: UploadFile = File(...)):
             "filename": file.filename,
             "rows": len(df),
             "columns": len(df.columns),
-            "column_names": df.columns.tolist()
+            "column_names": df.columns.tolist(),
+            "generated_rules": gen_rule
         }
         
         # Ensure the response is JSON serializable
@@ -311,8 +316,8 @@ async def validate_column(request: ColumnValidationRequest):
         s = ""
         c = request.column
         for i in request.rules:
-            s += f"rule type: {i.rule_type}, Column Name: {c}, Values: {i.value}"
-        rule_string = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
+            s += f"rule type: {i.rule_name}, Column Name: {c}, Values: {i.value}"
+        rule_string = g1.gen_out(f"The following are the rules created by the user, please return in format 1:{s}")
         rule_string = "{" + rule_string + "}"
         rule_d = eval(rule_string)
         results = check_consistency(dfc.df, rule_d)

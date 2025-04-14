@@ -29,7 +29,6 @@ function Home() {
             console.log(json);
             if(json.success) {
                 datachange(json.data);
-                console.log(data);
                 alert("File uploaded successfully");
                 navigate("/table-view", { state: { file } });
             }else{
