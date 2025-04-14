@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API")
-genai.configure(api_key='AIzaSyD738E6pB8OAA-Z9LU9Wv5oIQegLbbymgM')
+genai.configure(api_key='' + api_key)
 
 class GemBot():
 
