@@ -434,6 +434,7 @@ async def analyze_csv(file: UploadFile = File(...)):
         gen_rule = g1.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
 
         cleaned = clean_json_string(gen_rule)
+        print(cleaned)
         gen_rule = json.loads(cleaned)
         
         # Run all data quality checks
@@ -501,10 +502,10 @@ async def validate_column(request: Request):
 
         # print("Collected rule string:\n", s)
 
-        rule_string = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
-        rule_string = "{" + rule_string + "}"
+        # rule_string = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
+        # rule_string = "{" + rule_string + "}"
 
-        print(rule_string)
+        # print(rule_string)
         # print(rule_d)
 
         validation_result = validator.validate()
