@@ -447,7 +447,7 @@ async def analyze_csv(file: UploadFile = File(...)):
 
         val_res = summarize_validation_results(validation_result)
 
-        print(val_res)
+        # print(val_res)
 
         # Add basic file info to the results
         results["file_info"] = {
@@ -455,7 +455,8 @@ async def analyze_csv(file: UploadFile = File(...)):
             "rows": len(df),
             "columns": len(df.columns),
             "column_names": df.columns.tolist(),
-            "gen_rule": gen_rule
+            "gen_rule": gen_rule,
+            "validation_results": val_res
         }
         
         # Ensure the response is JSON serializable
