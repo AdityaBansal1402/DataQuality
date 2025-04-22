@@ -113,7 +113,7 @@ function TableView() {
       return {
         ...prev,
         [selectedColumn]: {
-          type: rulesForColumn.name,
+          type: rulesForColumn.dataType,
           rules: [...existing, ...formattedRules],
         }
       };

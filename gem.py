@@ -183,7 +183,7 @@ you only need to output Json as shown in the example, do not provide any extra c
 
 cb1.system(sys_text)
 
-with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
-    x = f.read()
+# with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
+#     x = f.read()
 
-print(cb1.gen_out(f"{x}. Read this file and generate appropriate business rules."))
+# print(cb1.gen_out(f"{x}. Read this file and generate appropriate business rules."))
