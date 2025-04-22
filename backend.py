@@ -62,6 +62,63 @@ class CustomJSONEncoder(json.JSONEncoder):
                 else:
                     return "-Infinity"
         return super().default(obj)
+    
+ge_expectations = {
+    1: "expect_column_to_exist",
+    2: "expect_column_values_to_not_be_null",
+    3: "expect_column_values_to_be_null",
+    4: "expect_column_values_to_be_unique",
+    5: "expect_table_row_count_to_be_between",
+    6: "expect_table_column_count_to_be_between",
+    7: "expect_column_values_to_be_in_set",
+    8: "expect_column_values_to_not_be_in_set",
+    9: "expect_column_values_to_be_of_type",
+    10: "expect_column_values_to_match_regex",
+    11: "expect_column_values_to_not_match_regex",
+    12: "expect_column_values_to_match_strftime_format",
+    13: "expect_column_values_to_be_between",
+    14: "expect_column_mean_to_be_between",
+    15: "expect_column_median_to_be_between",
+    16: "expect_column_min_to_be_between",
+    17: "expect_column_max_to_be_between",
+    18: "expect_column_quantile_values_to_be_between",
+    19: "expect_column_proportion_of_unique_values_to_be_between",
+    20: "expect_column_value_lengths_to_be_between",
+    21: "expect_column_value_lengths_to_equal",
+    22: "expect_column_pair_values_to_be_equal",
+    23: "expect_column_pair_values_a_to_be_greater_than_b",
+    24: "expect_compound_columns_to_be_unique",
+    25: "expect_select_column_values_to_be_unique_within_record",
+    26: "expect_multicolumn_sum_to_equal",
+    27: "expect_column_distinct_values_to_be_in_set",
+    28: "expect_column_kl_divergence_to_be_less_than",
+    29: "expect_column_to_exist_in_list",
+    30: "expect_column_values_to_be_json_parseable"
+}
+ 
+def apply_expectation(dataset, expectation_number, *args, **kwargs):
+    """
+    Applies a Great Expectations function by its assigned number.
+    
+    Parameters:
+        dataset (PandasDataset): The GE-wrapped DataFrame.
+        expectation_number (int): The ID of the expectation to apply.
+        *args: Positional arguments for the expectation function.
+        **kwargs: Keyword arguments for the expectation function.
+
+    Returns:
+        dict: Result of the GE expectation.
+    """
+    func_name = ge_expectations.get(expectation_number)
+    if not func_name:
+        raise ValueError(f"Invalid expectation number: {expectation_number}")
+
+    func = getattr(dataset, func_name, None)
+    if not func:
+        raise AttributeError(f"Expectation function '{func_name}' not found on dataset")
+
+    return func(*args, **kwargs)
+
 
 def clean_for_json(obj):
     """Recursively clean an object for JSON serialization, replacing NaN, inf, -inf with strings."""
