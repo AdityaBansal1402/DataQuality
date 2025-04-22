@@ -124,7 +124,7 @@ ge_expectations = {
     30: "expect_column_values_to_be_json_parseable"
 }
  
-def apply_expectation(validator, expectation_number, column, values):
+def apply_expectation(validator, expectation_number, column, *values):
     """
     Applies a Great Expectations function by its assigned number.
 
@@ -490,15 +490,16 @@ async def validate_column(request: Request):
             batch_request=batch_request,
             expectation_suite_name=suite_name
         )
-
-        s = ""
+        # [{'column': 'boolean', 'rules': [{'rule_id': 2, 'value': ''}, {'rule_id': 9, 'value': 'boolean'}]}]
+        # {'column': 'boolean', 'rules': [{'rule_id': 2, 'value': ''}, {'rule_id': 9, 'value': 'boolean'}]}
+        
         for column_name, rules_info in data.items():
             rule_list = rules_info.get("rules", [])
             for i in rule_list:
                 rule_id = i.get("rule_id")
                 raw_values = i.get("value").split()
                 cleaned_values = [smart_cast(v) for v in raw_values]
-                apply_expectation(validator, column_name, *cleaned_values)
+                apply_expectation(validator, rule_id, column_name, *cleaned_values)
 
         # print("Collected rule string:\n", s)
 
