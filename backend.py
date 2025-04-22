@@ -8,7 +8,7 @@ from collections import defaultdict
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, RootModel
 from typing import List, Optional, Union
-from gem import GemBot, sys_text, sys_text_1
+from gem import GemBot, sys_text
 import great_expectations as ge
 from great_expectations.core.batch import RuntimeBatchRequest
 import ast
@@ -50,8 +50,6 @@ app = FastAPI(title="Data Quality API",
               description="API for running data quality checks on CSV files")
 g1 = GemBot()
 g1.system(sys_text)
-g2 = GemBot()
-g2.system(sys_text_1)
 
 temp_df = pd.DataFrame({
     "a": [1, 2],
@@ -433,7 +431,7 @@ async def analyze_csv(file: UploadFile = File(...)):
             expectation_suite_name=suite_name
         )
         
-        gen_rule = g2.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
+        gen_rule = g1.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
 
         cleaned = clean_json_string(gen_rule)
         gen_rule = json.loads(cleaned)
