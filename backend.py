@@ -9,11 +9,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, RootModel
 from typing import List, Optional, Union
 from gem import GemBot, sys_text, sys_text_1
+import great_expectations as ge
+from great_expectations.core.batch import RuntimeBatchRequest
 
 class dframe(BaseModel):
     df: pd.DataFrame
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+# Create a data context
+context = ge.get_context()
+
+# Create a datasource
+datasource_config = {
+    "name": "pandas_datasource",
+    "class_name": "Datasource",
+    "module_name": "great_expectations.datasource",
+    "execution_engine": {
+        "module_name": "great_expectations.execution_engine",
+        "class_name": "PandasExecutionEngine"
+    },
+    "data_connectors": {
+        "runtime_connector": {
+            "class_name": "RuntimeDataConnector",
+            "batch_identifiers": ["batch_id"]
+        }
+    }
+}
+
+# Add the datasource to your context
+context.add_or_update_datasource(**datasource_config)
+
+# Create an expectation suite
+suite_name = "excel_suite"
+context.add_or_update_expectation_suite(expectation_suite_name=suite_name)
 
 
 app = FastAPI(title="Data Quality API",
@@ -163,7 +192,7 @@ def clean_json_string(messy_string):
 
     return messy_string.strip()
 
-def detect_missing_values(dataset):
+def detect_missing_values(dataset, validator):
     """
     Uses Great Expectations to detect missing values in all columns.
     Returns a list of dicts with column name, missing count, and missing percentage.
@@ -171,7 +200,7 @@ def detect_missing_values(dataset):
     result = []
 
     for col in dataset.columns:
-        ge_result = dataset.expect_column_values_to_not_be_null(col)
+        ge_result = validator.expect_column_values_to_not_be_null(col)
 
         if not ge_result["success"]:
             result.append({
@@ -182,7 +211,7 @@ def detect_missing_values(dataset):
 
     return result if result else "None"
 
-def detect_type_mismatches(dataset):
+def detect_type_mismatches(dataset, validator):
     """
     Detects type mismatches in a dataset using GE's built-in expectations.
     Assumes PandasDataset or GE dataset.
@@ -200,7 +229,7 @@ def detect_type_mismatches(dataset):
         dominant_type = dataset[col].dropna().map(type).mode()[0].__name__
 
         # GE expectation
-        result = dataset.expect_column_values_to_be_of_type(col, dominant_type)
+        result = validator.expect_column_values_to_be_of_type(col, dominant_type)
 
         if not result["success"]:
             mismatches[col] = {
@@ -293,15 +322,15 @@ def check_consistency(df, consistency_rules):
 
     return inconsistencies if inconsistencies else "None"
 
-def run_data_quality_checks(df):
+def run_data_quality_checks(df, validator):
     """Run all data quality checks and return results as a JSON-serializable dict."""
     results = {}
     
     # 1. Missing Values
-    results["missing_values"] = detect_missing_values(df)
+    results["missing_values"] = detect_missing_values(df, validator)
     
     # 2. Data Type Mismatches
-    data_type_issues = detect_type_mismatches(df)
+    data_type_issues = detect_type_mismatches(df, validator)
     results["data_type_mismatches"] = {
         "detailed": data_type_issues,
         "summary": format_type_mismatches(data_type_issues)
@@ -341,13 +370,37 @@ async def analyze_csv(file: UploadFile = File(...)):
         df = pd.read_excel(io.BytesIO(contents))
         dfc.df = df
         
+        # Create a batch request
+        batch_request = RuntimeBatchRequest(
+            datasource_name="pandas_datasource",
+            data_connector_name="runtime_connector",
+            data_asset_name="my_excel_data",
+            runtime_parameters={"batch_data": df},
+            batch_identifiers={"batch_id": "first_batch"}
+        )
+
+        # Get a validator using your batch and expectation suite
+        validator = context.get_validator(
+            batch_request=batch_request,
+            expectation_suite_name=suite_name
+        )
+        
         gen_rule = g2.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
 
         cleaned = clean_json_string(gen_rule)
         gen_rule = json.loads(cleaned)
         
         # Run all data quality checks
-        results = run_data_quality_checks(df)
+        results = run_data_quality_checks(df, validator)
+
+        # Save the expectation suite
+        validator.save_expectation_suite(discard_failed_expectations=False)
+
+        # Instead of creating a stored checkpoint, let's run validation directly
+        validation_result = validator.validate()
+
+        print(validation_result)
+
         # Add basic file info to the results
         results["file_info"] = {
             "filename": file.filename,
