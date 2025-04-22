@@ -163,77 +163,67 @@ def clean_json_string(messy_string):
 
     return messy_string.strip()
 
-def detect_missing_values(df):
-    """Find missing values in each column."""
-    missing_report = df.isnull().sum().reset_index()
-    missing_report.columns = ["Column", "Missing_Count"]
-    missing_report["Missing_Percentage"] = (missing_report["Missing_Count"] / len(df)) * 100
-    
-    # Convert to dictionary format for JSON serialization
-    if missing_report[missing_report["Missing_Count"] > 0].empty:
-        return "None"
-    
-    result = []
-    for _, row in missing_report[missing_report["Missing_Count"] > 0].iterrows():
-        result.append({
-            "Column": row["Column"],
-            "Missing_Count": int(row["Missing_Count"]),
-            "Missing_Percentage": float(row["Missing_Percentage"])
-        })
-    return result
-
-def detect_data_type_mismatches(df):
+def detect_missing_values(dataset):
     """
-    Detects mismatched data types in DataFrame columns.
+    Uses Great Expectations to detect missing values in all columns.
+    Returns a list of dicts with column name, missing count, and missing percentage.
+    """
+    result = []
+
+    for col in dataset.columns:
+        ge_result = dataset.expect_column_values_to_not_be_null(col)
+
+        if not ge_result["success"]:
+            result.append({
+                "Column": col,
+                "Missing_Count": int(ge_result["result"].get("unexpected_count", 0)),
+                "Missing_Percentage": float(round(ge_result["result"].get("unexpected_percent", 0.0), 2))
+            })
+
+    return result if result else "None"
+
+def detect_type_mismatches(dataset):
+    """
+    Detects type mismatches in a dataset using GE's built-in expectations.
+    Assumes PandasDataset or GE dataset.
+
+    Returns a dict of columns where mismatches were found.
     """
     mismatches = {}
-    
-    for col in df.columns:
-        # Get value types for non-null values
-        non_null_mask = ~df[col].isna()
-        if non_null_mask.sum() == 0:
+
+    for col in dataset.columns:
+        # Skip empty/null columns
+        if dataset[col].dropna().empty:
             continue
-            
-        # Map each value to its type and count occurrences
-        type_series = df.loc[non_null_mask, col].map(type)
-        type_counts = type_series.value_counts()
         
-        # If we have more than one type in the column, it's a mismatch
-        if len(type_counts) > 1:
-            dominant_type = type_counts.index[0]
-            
-            # Find indices with non-dominant types
-            mixed_indices = defaultdict(list)
-            for idx, val_type in type_series.items():
-                if val_type != dominant_type:
-                    mixed_indices[val_type.__name__].append(int(idx))
-            
-            # Format type counts for readability
-            type_counts_dict = {t.__name__: int(count) for t, count in type_counts.items()}
-            
+        # Guess the dominant type from non-null values
+        dominant_type = dataset[col].dropna().map(type).mode()[0].__name__
+
+        # GE expectation
+        result = dataset.expect_column_values_to_be_of_type(col, dominant_type)
+
+        if not result["success"]:
             mismatches[col] = {
-                "dominant_type": dominant_type.__name__,
-                "type_counts": type_counts_dict,
-                "mixed_indices": dict(mixed_indices)
+                "expected_type": dominant_type,
+                "unexpected_percent": result["result"].get("unexpected_percent", None),
+                "unexpected_count": result["result"].get("unexpected_count", None),
+                "partial_unexpected_list": result["result"].get("partial_unexpected_list", [])
             }
-            
+
     return mismatches
 
-def format_data_type_mismatches(mismatches):
-    """
-    Formats data type mismatches into a list of strings.
-    """
+def format_type_mismatches(mismatches):
     if not mismatches:
         return "None"
-    
-    result = []
-    
-    for column, info in mismatches.items():
-        dominant = info['dominant_type']
-        types_str = ", ".join([f"{t} ({count})" for t, count in info['type_counts'].items()])
-        result.append(f"{column}: Mixed types [{types_str}]")
-    
-    return result
+
+    formatted = []
+    for col, info in mismatches.items():
+        formatted.append(
+            f"{col}: Expected type '{info['expected_type']}', "
+            f"Unexpected count: {info['unexpected_count']}, "
+            f"Sample bad values: {info['partial_unexpected_list']}"
+        )
+    return formatted
 
 def detect_duplicates(df):
     """Find duplicate rows in the dataset."""
@@ -311,10 +301,10 @@ def run_data_quality_checks(df):
     results["missing_values"] = detect_missing_values(df)
     
     # 2. Data Type Mismatches
-    data_type_issues = detect_data_type_mismatches(df)
+    data_type_issues = detect_type_mismatches(df)
     results["data_type_mismatches"] = {
         "detailed": data_type_issues,
-        "summary": format_data_type_mismatches(data_type_issues)
+        "summary": format_type_mismatches(data_type_issues)
     }
     
     # 3. Duplicates
@@ -351,12 +341,11 @@ async def analyze_csv(file: UploadFile = File(...)):
         df = pd.read_excel(io.BytesIO(contents))
         dfc.df = df
         
-        gen_rule = g2.gen_out(f"For the following dataframe, please return rules in formatted form:{df}")
-        # gen_rule = "{" + gen_rule + "}"
+        gen_rule = g2.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
 
         cleaned = clean_json_string(gen_rule)
         gen_rule = json.loads(cleaned)
-        print(gen_rule)
+        
         # Run all data quality checks
         results = run_data_quality_checks(df)
         # Add basic file info to the results
@@ -382,14 +371,6 @@ async def validate_column(request: Request):
     Apply validation rules to a specific column in the current dataset. : ColumnValidationRequest
     """
     try:
-        # This endpoint assumes you've already loaded the data somewhere
-        # You need to either store the DataFrame or pass the file again
-        
-        # For demonstration, let's create a function that applies rules
-        # if not hasattr(app.state, "current_dataframe") or app.state.current_dataframe is None:
-        #     return {'success': False, 'error': 'No data loaded. Please upload a file first.'}
-        
-        # df = app.state.current_dataframe
         data = await request.json()  # Get the actual JSON from the request
 
         s = ""
