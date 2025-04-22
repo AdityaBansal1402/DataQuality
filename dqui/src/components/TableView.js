@@ -103,7 +103,8 @@ function TableView() {
     }
   
     const formattedRules = rulesForColumn.rules.map(rule => ({
-      type: rule.type, // it's called 'type' in your JSON
+      type: rule.name, // it's called 'type' in your JSON
+      id: rule.rule_id,
       value: rule.value || "",
     }));
   
@@ -112,7 +113,7 @@ function TableView() {
       return {
         ...prev,
         [selectedColumn]: {
-          type: rulesForColumn.type,
+          type: rulesForColumn.name,
           rules: [...existing, ...formattedRules],
         }
       };
@@ -161,7 +162,7 @@ function TableView() {
       rules: (data.rules || [])
         .filter(r => r.type && (r.type === "not_null" || r.value))
         .map(r => ({
-          rule_id: ruleids[r.type],
+          rule_id: r.id? r.id:ruleids[r.type],
           value: r.value
         }))
     }));

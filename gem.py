@@ -152,35 +152,37 @@ ge_expectations = {
 
 example output:
 {
-    {
-        "column": "boolean",
+    "column_name1": {
         "dataType": "number",
         "rules": [
             {
                 "rule_id": 13,
-                "value": "19,20"
+                "name": "expect_column_values_to_be_between",
+                "value": "0,100"
             }
         ]
     },
-    {
-        "column": "Age",
+    "column_name2":{
         "dataType": "number",
         "rules": [
             {
                 "rule_id": 16,
-                "value": "87"
+                "name": "expect_column_min_to_be_between",
+                "value": "0,10"
             }
         ]
     }
 }
 
-Note: Try to output as many rules as possible
-you only need to output as shown in the example, do not provide any extra code or helper functions.
+
+IMPORTANT: OUTPUT NEEDS TO BE ENCLOSED IN { }
+Note: Add as many relevant rules as you can. output values as shown in the example (meaning if the rule is range then values should be the range numerical values eg:"0,100")
+you only need to output Json as shown in the example, do not provide any extra code or helper functions.
 '''
 
 cb1.system(sys_text)
 
-# with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
-#     x = f.read()
+with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:
+    x = f.read()
 
-# print(cb1.gen_out(f"{x}. Read this file and generate appropriate business rules."))
+print(cb1.gen_out(f"{x}. Read this file and generate appropriate business rules."))

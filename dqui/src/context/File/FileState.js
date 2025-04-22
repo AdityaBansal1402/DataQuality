@@ -4,10 +4,11 @@ const FileState =(props)=>{
     const[data,datachange]=useState({});
     const [val,setval]=useState({});
     useEffect(()=>{
-        if (data?.file_info.validation_result) {
+      if(Object.keys(data).length !== 0){
+        if (data?.file_info.validation_results) {
             const grouped = {};
       
-            data.file_info.validation_result.forEach((item) => {
+            data.file_info.validation_results.forEach((item) => {
               const col = item.Column;
               if (!grouped[col]) {
                 grouped[col] = [];
@@ -18,6 +19,7 @@ const FileState =(props)=>{
             setval(grouped);
             console.log(grouped);
           }
+        }
     },[data])
     
     return(
