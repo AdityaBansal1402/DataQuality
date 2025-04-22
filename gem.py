@@ -176,7 +176,8 @@ example output:
 
 
 IMPORTANT: OUTPUT NEEDS TO BE ENCLOSED IN { }
-Note: Add as many relevant rules as you can. output values as shown in the example (meaning if the rule is range then values should be the range numerical values eg:"0,100")
+Note 1: Add as many relevant rules as you can. output values as shown in the example (meaning if the rule is range then values should be the range numerical values eg:"0,100")
+Note 2: When using data types as values, use python specific data types eg(int, str, float, bool, etc).
 you only need to output Json as shown in the example, do not provide any extra code or helper functions.
 '''
 
