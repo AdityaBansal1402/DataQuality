@@ -11,6 +11,7 @@ from typing import List, Optional, Union
 from gem import GemBot, sys_text, sys_text_1
 import great_expectations as ge
 from great_expectations.core.batch import RuntimeBatchRequest
+import ast
 
 class dframe(BaseModel):
     df: pd.DataFrame
@@ -125,28 +126,28 @@ ge_expectations = {
     30: "expect_column_values_to_be_json_parseable"
 }
  
-def apply_expectation(dataset, expectation_number, *args, **kwargs):
+def apply_expectation(validator, expectation_number, column, values):
     """
     Applies a Great Expectations function by its assigned number.
-    
+
     Parameters:
-        dataset (PandasDataset): The GE-wrapped DataFrame.
+        validator (Validator): The GE Validator object.
         expectation_number (int): The ID of the expectation to apply.
-        *args: Positional arguments for the expectation function.
-        **kwargs: Keyword arguments for the expectation function.
+        column (str): The name of the column to validate.
+        values (list): A list of positional arguments to pass to the expectation.
 
     Returns:
-        dict: Result of the GE expectation.
+        dict: The expectation config dictionary.
     """
     func_name = ge_expectations.get(expectation_number)
     if not func_name:
         raise ValueError(f"Invalid expectation number: {expectation_number}")
 
-    func = getattr(dataset, func_name, None)
+    func = getattr(validator, func_name, None)
     if not func:
-        raise AttributeError(f"Expectation function '{func_name}' not found on dataset")
+        raise AttributeError(f"Expectation function '{func_name}' not found on validator")
 
-    return func(*args, **kwargs)
+    return func(column, *values)
 
 
 def clean_for_json(obj):
@@ -391,6 +392,17 @@ def summarize_validation_results(validation_result):
 
     return summary
 
+def smart_cast(value):
+    """
+    Converts a string to its appropriate Python type.
+    """
+    try:
+        # Safely evaluate literals like numbers, booleans, None, lists, dicts
+        return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        # If it can't be parsed, return as-is (string)
+        return value
+
 
 @app.post("/analyze", response_class=JSONResponse)
 async def analyze_csv(file: UploadFile = File(...)):
@@ -464,23 +476,43 @@ async def validate_column(request: Request):
     try:
         data = await request.json()  # Get the actual JSON from the request
 
+        # Create a batch request
+        batch_request = RuntimeBatchRequest(
+            datasource_name="pandas_datasource",
+            data_connector_name="runtime_connector",
+            data_asset_name="my_excel_data",
+            runtime_parameters={"batch_data": dfc.df},
+            batch_identifiers={"batch_id": "first_batch"}
+        )
+
+        # Get a validator using your batch and expectation suite
+        validator = context.get_validator(
+            batch_request=batch_request,
+            expectation_suite_name=suite_name
+        )
+
         s = ""
         for column_name, rules_info in data.items():
             rule_list = rules_info.get("rules", [])
             for i in rule_list:
-                rule_type = i.get("type")
-                value = i.get("value")
-                s += f"rule type: {rule_type}, Column Name: {column_name}, Values: {value},\n"
+                rule_id = i.get("rule_id")
+                raw_values = i.get("value").split()
+                cleaned_values = [smart_cast(v) for v in raw_values]
+                apply_expectation(validator, column_name, *cleaned_values)
 
         # print("Collected rule string:\n", s)
 
         rule_string = g1.gen_out(f"The following are the rules created by the user, please return in formatted form:{s}")
         rule_string = "{" + rule_string + "}"
 
-        rule_d = eval(rule_string)
-        print(rule_d)
+        print(rule_string)
+        # print(rule_d)
 
-        results = check_consistency(dfc.df, rule_d)
+        validation_result = validator.validate()
+
+        results = summarize_validation_results(validation_result)
+
+        # results = check_consistency(dfc.df, rule_d)
         # results = apply_validation_rules(df, request.column, request.dataType, request.rules)
         
         return {'success': True, 'data': clean_for_json(results)}
