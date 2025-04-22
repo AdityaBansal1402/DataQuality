@@ -434,7 +434,6 @@ async def analyze_csv(file: UploadFile = File(...)):
         gen_rule = g1.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
 
         cleaned = clean_json_string(gen_rule)
-        print(cleaned)
         gen_rule = json.loads(cleaned)
         
         # Run all data quality checks
@@ -447,8 +446,7 @@ async def analyze_csv(file: UploadFile = File(...)):
         validation_result = validator.validate()
 
         val_res = summarize_validation_results(validation_result)
-
-        # print(val_res)
+        print(val_res)
 
         # Add basic file info to the results
         results["file_info"] = {
@@ -497,8 +495,10 @@ async def validate_column(request: Request):
             rule_list = rules_info.get("rules", [])
             for i in rule_list:
                 rule_id = i.get("rule_id")
-                raw_values = i.get("value").split()
+                raw_values = i.get("value").split(',')
+                print(raw_values)
                 cleaned_values = [smart_cast(v) for v in raw_values]
+                print(cleaned_values)
                 apply_expectation(validator, rule_id, column_name, *cleaned_values)
 
         # print("Collected rule string:\n", s)
