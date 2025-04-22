@@ -156,16 +156,33 @@ function TableView() {
     );
     console.log("Submitting rules:", columnRules);
   
-    const formattedRules = Object.entries(savedRules).map(([column, data]) => ({
-      column,
-      dataType: data.type,
-      rules: (data.rules || [])
+    // const formattedRules = Object.entries(savedRules).map(([column, data]) => ({
+    //   column,
+    //   dataType: data.type,
+    //   rules: (data.rules || [])
+    //     .filter(r => r.type && (r.type === "not_null" || r.value))
+    //     .map(r => ({
+    //       rule_id: r.id? r.id:ruleids[r.type],
+    //       value: r.value
+    //     }))
+    // }));
+
+    const formattedRules = Object.entries(savedRules).reduce((acc, [column, data]) => {
+      const rules = (data.rules || [])
         .filter(r => r.type && (r.type === "not_null" || r.value))
         .map(r => ({
-          rule_id: r.id? r.id:ruleids[r.type],
+          rule_id: r.id ? r.id : ruleids[r.type],
+          name: r.type, // or format the name if needed
           value: r.value
-        }))
-    }));
+        }));
+    
+      acc[column] = {
+        dataType: data.type,
+        rules
+      };
+    
+      return acc;
+    }, {});
     console.log("Formatted rules:", formattedRules);
     console.log("savedRules:", savedRules);
   
