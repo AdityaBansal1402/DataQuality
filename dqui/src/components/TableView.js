@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use, useContext } from "react";
 import { useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
+import FileContext from "../context/File/FileContext";
+import QualityContext from "../context/Qualitychecks/QualityContext";
 
 function TableView() {
   const location = useLocation();
   const file = location.state?.file;
+  const filecontext=useContext(FileContext);
+  const {data,val}=filecontext;
+  const qualityContext = useContext(QualityContext);
+  const { ruleids } = qualityContext;
 
   const [columns, setColumns] = useState([]);
+  const [genrule,setgenrule]=useState(false);
+  const [generatedRules, setGeneratedRules] = useState([]);
   const [rows, setRows] = useState([]);
   const [selectedColumn, setSelectedColumn] = useState("");
   const [selectedType, setSelectedType] = useState("");
@@ -82,6 +90,39 @@ function TableView() {
     setRules(updated);
   };
 
+  const handleGenerateRules = () => {
+    if (!selectedColumn) return;
+  
+    const gen_rules = data.file_info.gen_rule || {};
+  
+    const rulesForColumn = gen_rules[selectedColumn];
+  
+    if (!rulesForColumn || !rulesForColumn.rules || rulesForColumn.rules.length === 0) {
+      alert("No generative rules found for this column.");
+      return;
+    }
+  
+    const formattedRules = rulesForColumn.rules.map(rule => ({
+      type: rule.type, // it's called 'type' in your JSON
+      value: rule.value || "",
+    }));
+  
+    setSavedRules(prev => {
+      const existing = prev[selectedColumn]?.rules || [];
+      return {
+        ...prev,
+        [selectedColumn]: {
+          type: rulesForColumn.type,
+          rules: [...existing, ...formattedRules],
+        }
+      };
+    });
+  
+    setgenrule(true);
+  };
+    
+
+
   const handleSaveRule = () => {
     if (!selectedColumn || !selectedType) return;
   
@@ -114,16 +155,18 @@ function TableView() {
     );
     console.log("Submitting rules:", columnRules);
   
-    const formattedRules = {
-      column: selectedColumn,
-      dataType: selectedType,
-      rules: columnRules
+    const formattedRules = Object.entries(savedRules).map(([column, data]) => ({
+      column,
+      dataType: data.type,
+      rules: (data.rules || [])
         .filter(r => r.type && (r.type === "not_null" || r.value))
         .map(r => ({
-          rule_type: r.type,
+          rule_id: ruleids[r.type],
           value: r.value
         }))
-    };
+    }));
+    console.log("Formatted rules:", formattedRules);
+    console.log("savedRules:", savedRules);
   
     try {
       const response = await fetch('http://localhost:8000/validate', {
@@ -131,7 +174,7 @@ function TableView() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(savedRules),
+        body: JSON.stringify(formattedRules),
       });
   
       const result = await response.json();
@@ -176,6 +219,47 @@ function TableView() {
 
         {selectedColumn && (
           <>
+            {val[selectedColumn] && val[selectedColumn].map((item, index) => (
+              <div
+                key={index}
+                className={`border-l-4 rounded-lg p-4 mb-4 shadow-sm break-words ${
+                  item.Success ? "border-green-500 bg-green-50" : "border-red-500 bg-red-50"
+                }`}
+              >
+                <h5 className={`text-lg font-semibold ${item.Success ? "text-green-700" : "text-red-700"}`}>
+                  {item.Expectation}
+                </h5>
+                <p className="text-sm font-medium mt-1">
+                  Success:{" "}
+                  <span className={item.Success ? "text-green-600" : "text-red-600"}>
+                    {item.Success ? "✅ Passed" : "❌ Failed"}
+                  </span>
+                </p>
+
+                {!item.Success && (
+                  <div className="mt-2 ml-2 text-sm text-gray-800">
+                    <ul className="list-disc list-inside">
+                      <li><strong>Failed %:</strong> {item["Failed %"] || item["Failed_%"] || "-"}</li>
+                      <li><strong>Failed Records:</strong> {item["Failed Records"] || item["Failed_Records"] || "-"}</li>
+                      <li><strong>Passed %:</strong> {item["Passed %"] || "-"}</li>
+                      <li><strong>Total Records:</strong> {item["Total Records"] || "-"}</li>
+                    </ul>
+
+                    {item["Sample Failures"] && item["Sample Failures"].length > 0 && (
+                      <div className="mt-2">
+                        <strong>Sample Failures:</strong>
+                        <ul className="list-disc list-inside ml-4">
+                          {item["Sample Failures"].map((fail, i) => (
+                            <li key={i}>{fail}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
             <label className="block text-sm font-medium mb-1">Select Data Type:</label>
             <select
               className="w-full p-2 border rounded mb-4"
@@ -285,6 +369,13 @@ function TableView() {
             ))}
           </div>
         )}
+
+      <button
+        onClick={handleGenerateRules}
+        className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 mt-2 rounded"
+      >
+        🎯 Show Generative Rules
+      </button>
 
         {/* Submit Button */}
         <button
