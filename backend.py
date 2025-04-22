@@ -386,6 +386,9 @@ def summarize_validation_results(validation_result):
         if "partial_unexpected_list" in result_dict and result_dict["partial_unexpected_list"]:
             entry["Sample Failures"] = result_dict["partial_unexpected_list"][:5]
 
+        if "unexpected_index_list" in result_dict:
+            entry["Failed Indices"] = result_dict["unexpected_index_list"][:10]  # limit to 10 for brevity
+
         summary.append(entry)
 
     return summary
