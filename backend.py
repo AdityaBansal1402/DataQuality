@@ -356,6 +356,42 @@ def run_data_quality_checks(df, validator):
     # Clean any problematic values for JSON serialization
     return clean_for_json(results)
 
+def summarize_validation_results(validation_result):
+    """
+    Summarizes Great Expectations validation results into readable info.
+    Only includes relevant metrics and avoids empty noise.
+    """
+    summary = []
+
+    for result in validation_result.results:
+        expectation_type = result["expectation_config"]["expectation_type"]
+        column = result["expectation_config"]["kwargs"].get("column", "N/A")
+        success = result["success"]
+        result_dict = result.get("result", {})
+
+        entry = {
+            "Expectation": expectation_type,
+            "Column": column,
+            "Success": success
+        }
+
+        if "unexpected_percent" in result_dict:
+            entry["Failed %"] = round(result_dict["unexpected_percent"], 2)
+            entry["Passed %"] = round(100 - result_dict["unexpected_percent"], 2)
+
+        if "unexpected_count" in result_dict:
+            entry["Total Records"] = result_dict.get("element_count", "N/A")
+            entry["Failed Records"] = result_dict["unexpected_count"]
+            entry["Passed Records"] = result_dict.get("element_count", 0) - result_dict["unexpected_count"]
+
+        if "partial_unexpected_list" in result_dict and result_dict["partial_unexpected_list"]:
+            entry["Sample Failures"] = result_dict["partial_unexpected_list"][:5]
+
+        summary.append(entry)
+
+    return summary
+
+
 @app.post("/analyze", response_class=JSONResponse)
 async def analyze_csv(file: UploadFile = File(...)):
     """
@@ -399,7 +435,9 @@ async def analyze_csv(file: UploadFile = File(...)):
         # Instead of creating a stored checkpoint, let's run validation directly
         validation_result = validator.validate()
 
-        print(validation_result)
+        val_res = summarize_validation_results(validation_result)
+
+        print(val_res)
 
         # Add basic file info to the results
         results["file_info"] = {
