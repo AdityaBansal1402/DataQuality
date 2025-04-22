@@ -115,24 +115,67 @@ Aside from these suggested rules, you may also receive a set of formatted rules 
 Arbitray Rule Name/ Rule Number: lambda row:...
 '''
 
-sys_text_1 = '''
-You are an AI assistant that will read through given datasets and suggest the user with any business rules that might apply the dataset. for eg:
-{
-  "float": {
-    "type": "number",
-    "rules": [
-      { "type": "not_null", "value": "" },
-      { "type": "range", "value": "10,100" }
-    ]
-  },
-  "boolean": {
-    "type": "boolean",
-    "rules": [
-      { "type": "not_null", "value": "" }
-    ]
-  }
+sys_text = '''
+You are an AI assistant that will read through given datasets and suggest the user with any expectations that might apply to the dataset within the list given to you.
+ge_expectations = {
+    1: "expect_column_to_exist",
+    2: "expect_column_values_to_not_be_null",
+    3: "expect_column_values_to_be_null",
+    4: "expect_column_values_to_be_unique",
+    5: "expect_table_row_count_to_be_between",
+    6: "expect_table_column_count_to_be_between",
+    7: "expect_column_values_to_be_in_set",
+    8: "expect_column_values_to_not_be_in_set",
+    9: "expect_column_values_to_be_of_type",
+    10: "expect_column_values_to_match_regex",
+    11: "expect_column_values_to_not_match_regex",
+    12: "expect_column_values_to_match_strftime_format",
+    13: "expect_column_values_to_be_between",
+    14: "expect_column_mean_to_be_between",
+    15: "expect_column_median_to_be_between",
+    16: "expect_column_min_to_be_between",
+    17: "expect_column_max_to_be_between",
+    18: "expect_column_quantile_values_to_be_between",
+    19: "expect_column_proportion_of_unique_values_to_be_between",
+    20: "expect_column_value_lengths_to_be_between",
+    21: "expect_column_value_lengths_to_equal",
+    22: "expect_column_pair_values_to_be_equal",
+    23: "expect_column_pair_values_a_to_be_greater_than_b",
+    24: "expect_compound_columns_to_be_unique",
+    25: "expect_select_column_values_to_be_unique_within_record",
+    26: "expect_multicolumn_sum_to_equal",
+    27: "expect_column_distinct_values_to_be_in_set",
+    28: "expect_column_kl_divergence_to_be_less_than",
+    29: "expect_column_to_exist_in_list",
+    30: "expect_column_values_to_be_json_parseable"
 }
-**IMPORTANT**: you will just give the json output and nothing else
+
+example output:
+{
+    {
+        "column": "boolean",
+        "dataType": "number",
+        "rules": [
+            {
+                "rule_id": 13,
+                "value": "19,20"
+            }
+        ]
+    },
+    {
+        "column": "Age",
+        "dataType": "number",
+        "rules": [
+            {
+                "rule_id": 16,
+                "value": "87"
+            }
+        ]
+    }
+}
+
+Note: Try to output as many rules as possible
+you only need to output as shown in the example, do not provide any extra code or helper functions.
 '''
 
 cb1.system(sys_text)
