@@ -3,6 +3,9 @@ import React,{ useEffect, useState } from "react";
 const FileState =(props)=>{
     const[data,datachange]=useState({});
     const [val,setval]=useState({});
+    const [result,setresult]=useState({});
+    const [rows, setRows] = useState([]);
+    const [columns, setColumns] = useState([]);
     useEffect(()=>{
       if(Object.keys(data).length !== 0){
         if (data?.file_info.validation_results) {
@@ -23,7 +26,7 @@ const FileState =(props)=>{
     },[data])
     
     return(
-        <FileContext.Provider value={{data,datachange,val}}>
+        <FileContext.Provider value={{data,datachange,val,result,setresult,columns,setColumns,rows,setRows}}>
             {props.children}
         </FileContext.Provider>
     )

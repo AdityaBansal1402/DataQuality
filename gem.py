@@ -163,24 +163,25 @@ example output:
         ]
     },
     "column_name2":{
-        "dataType": "number",
+        "dataType": "string",
         "rules": [
             {
-                "rule_id": 16,
-                "name": "expect_column_min_to_be_between",
-                "value": "0,10"
+                "rule_id": 7,
+                "name": "expect_column_values_to_be_in_set",
+                "value": date,cherry,banana
             }
         ]
     }
 }
 
 
-IMPORTANT: OUTPUT NEEDS TO BE ENCLOSED IN { }
-Note 1: Add as many relevant rules as you can. output values as shown in the example (meaning if the rule is range then values should be the range numerical values eg:"0,100")
+IMPORTANT: OUTPUT NEEDS TO BE ENCLOSED IN { }, GENERATE RULES FOR EACH COLUMN
+Note 1: Add as many relevant rules as you can for each column. output values as shown in the example (meaning if the rule is range then values should be the range numerical values eg:"0,100")
 Note 2: When using data types as values, use python specific data types eg(int, str, float, bool, etc).
 you only need to output Json as shown in the example, do not provide any extra code or helper functions.
 '''
 
+# Note 3: In case of sets output them as comma seperated values eg: value1,value2,value3 in one string. like if there is date, cherry and banana you should just give me date,cherry,banana
 cb1.system(sys_text)
 
 # with open("synthetic_dirty_data.csv", "r", encoding="utf-8") as f:

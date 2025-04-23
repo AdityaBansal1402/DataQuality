@@ -124,19 +124,35 @@ ge_expectations = {
     30: "expect_column_values_to_be_json_parseable"
 }
  
-def apply_expectation(validator, expectation_number, column, *values):
+def apply_expectation(validator, expectation_number, column, value_string):
     """
-    Applies a Great Expectations function by its assigned number.
+    Applies a Great Expectations function by its assigned number, with values passed as a comma-separated string.
 
     Parameters:
         validator (Validator): The GE Validator object.
         expectation_number (int): The ID of the expectation to apply.
         column (str): The name of the column to validate.
-        values (list): A list of positional arguments to pass to the expectation.
+        value_string (str): A comma-separated string of values, e.g., "10,100" or "apple,banana".
 
     Returns:
         dict: The expectation config dictionary.
     """
+
+    def parse_values(value_string):
+        if value_string.strip() == "":
+            return []
+        def parse_token(token):
+            token = token.strip()
+            try:
+                if '.' in token:
+                    return float(token)
+                return int(token)
+            except ValueError:
+                return token
+        return [parse_token(val) for val in value_string.split(",")]
+
+    values = parse_values(value_string)
+    values=[smart_cast(v) for v in values]
     func_name = ge_expectations.get(expectation_number)
     if not func_name:
         raise ValueError(f"Invalid expectation number: {expectation_number}")
@@ -145,8 +161,15 @@ def apply_expectation(validator, expectation_number, column, *values):
     if not func:
         raise AttributeError(f"Expectation function '{func_name}' not found on validator")
 
-    return func(column, *values)
-
+    if len(values)<=2:
+        return func(column, *values, result_format={
+            "result_format": "COMPLETE",
+            "include_unexpected_index_list": True
+        })
+    return func(column, values, result_format={
+            "result_format": "COMPLETE",
+            "include_unexpected_index_list": True
+        })
 
 def clean_for_json(obj):
     """Recursively clean an object for JSON serialization, replacing NaN, inf, -inf with strings."""
@@ -199,15 +222,16 @@ def detect_missing_values(dataset, validator):
     result = []
 
     for col in dataset.columns:
-        ge_result = validator.expect_column_values_to_not_be_null(col)
-
-        if not ge_result["success"]:
-            result.append({
-                "Column": col,
-                "Missing_Count": int(ge_result["result"].get("unexpected_count", 0)),
-                "Missing_Percentage": float(round(ge_result["result"].get("unexpected_percent", 0.0), 2))
-            })
-
+        ge_result = validator.expect_column_values_to_not_be_null(col,result_format={"result_format": "COMPLETE", "include_unexpected_index_list": True})
+        # print(ge_result)
+        result.append(summarize_validation_results(ge_result))
+        # if not ge_result["success"]:
+        #     result.append({
+        #         "Column": col,
+        #         "Missing_Count": int(ge_result["result"].get("unexpected_count", 0)),
+        #         "Missing_Percentage": float(round(ge_result["result"].get("unexpected_percent", 0.0), 2))
+        #     })
+        
     return result if result else "None"
 
 def detect_type_mismatches(dataset, validator):
@@ -228,8 +252,11 @@ def detect_type_mismatches(dataset, validator):
         dominant_type = dataset[col].dropna().map(type).mode()[0].__name__
 
         # GE expectation
-        result = validator.expect_column_values_to_be_of_type(col, dominant_type)
+        result = validator.expect_column_values_to_be_of_type(col, dominant_type,result_format={"result_format": "COMPLETE", "include_unexpected_index_list": True})
 
+        
+        result_sum = summarize_validation_results(result)
+        return result_sum
         if not result["success"]:
             mismatches[col] = {
                 "expected_type": dominant_type,
@@ -237,6 +264,7 @@ def detect_type_mismatches(dataset, validator):
                 "unexpected_count": result["result"].get("unexpected_count", None),
                 "partial_unexpected_list": result["result"].get("partial_unexpected_list", [])
             }
+
 
     return mismatches
 
@@ -327,12 +355,12 @@ def run_data_quality_checks(df, validator):
     
     # 1. Missing Values
     results["missing_values"] = detect_missing_values(df, validator)
-    
+    # print(results["missing_values"])
     # 2. Data Type Mismatches
     data_type_issues = detect_type_mismatches(df, validator)
     results["data_type_mismatches"] = {
         "detailed": data_type_issues,
-        "summary": format_type_mismatches(data_type_issues)
+        "summary": data_type_issues
     }
     
     # 3. Duplicates
@@ -362,7 +390,12 @@ def summarize_validation_results(validation_result):
     """
     summary = []
 
-    for result in validation_result.results:
+    # If it's a single ExpectationValidationResult, wrap in a list
+    results = getattr(validation_result, "results", None)
+    if results is None:
+        results = [validation_result]
+
+    for result in results:
         expectation_type = result["expectation_config"]["expectation_type"]
         column = result["expectation_config"]["kwargs"].get("column", "N/A")
         success = result["success"]
@@ -384,10 +417,10 @@ def summarize_validation_results(validation_result):
             entry["Passed Records"] = result_dict.get("element_count", 0) - result_dict["unexpected_count"]
 
         if "partial_unexpected_list" in result_dict and result_dict["partial_unexpected_list"]:
-            entry["Sample Failures"] = result_dict["partial_unexpected_list"][:5]
+            entry["Sample Failures"] = result_dict["partial_unexpected_list"]
 
         if "unexpected_index_list" in result_dict:
-            entry["Failed Indices"] = result_dict["unexpected_index_list"][:10]  # limit to 10 for brevity
+            entry["Failed Indices"] = result_dict["unexpected_index_list"]  # limit to 10 for brevity
 
         summary.append(entry)
 
@@ -417,6 +450,7 @@ async def analyze_csv(file: UploadFile = File(...)):
         # Read the CSV file into a pandas DataFrame
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
+        df=ge.from_pandas(df)
         dfc.df = df
         
         # Create a batch request
@@ -436,8 +470,12 @@ async def analyze_csv(file: UploadFile = File(...)):
         
         gen_rule = g1.gen_out(f"For the following dataframe, please return the expectations that may apply along with arguments:{df}")
 
+        print(gen_rule)
+
+        print("bhandari hahahahahahahaha")
         cleaned = clean_json_string(gen_rule)
         gen_rule = json.loads(cleaned)
+        print(gen_rule)
         
         # Run all data quality checks
         results = run_data_quality_checks(df, validator)
@@ -449,7 +487,7 @@ async def analyze_csv(file: UploadFile = File(...)):
         validation_result = validator.validate()
 
         val_res = summarize_validation_results(validation_result)
-        print(val_res)
+        # print(val_res)
 
         # Add basic file info to the results
         results["file_info"] = {
@@ -500,9 +538,10 @@ async def validate_column(request: Request):
                 rule_id = i.get("rule_id")
                 raw_values = i.get("value").split(',')
                 print(raw_values)
+                raw_string=i.get("value")
                 cleaned_values = [smart_cast(v) for v in raw_values]
                 print(cleaned_values)
-                apply_expectation(validator, rule_id, column_name, *cleaned_values)
+                apply_expectation(validator, rule_id, column_name, raw_string)
 
         # print("Collected rule string:\n", s)
 
