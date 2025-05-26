@@ -1,15 +1,18 @@
 import pandas as pd
-import numpy as np
+import great_expectations as ge
 
-dataset = pd.read_excel("synthetic_dirty_data.xlsx")
-print(dataset["boolean"].head(10)) 
-for col in dataset.columns:
-        
-        # Skip empty/null columns
-        if dataset[col].dropna().empty:
-            continue
-        
-        # Guess the dominant type from non-null values
-        dominant_type = dataset[col].dropna().map(type).mode()[0].__name__
+df = pd.DataFrame({"age": [20, 30, 150, 10, 25, -5]})
+ge_df = ge.from_pandas(df)
 
-        print(f"Column '{col}' has dominant type: {dominant_type}")
+result = ge_df.expect_column_values_to_be_between(
+    column="age",
+    min_value=18,
+    max_value=65,
+    result_format={
+        "result_format": "COMPLETE",
+        "include_unexpected_index_list": True
+    }
+)
+
+print(result["result"].keys())  # should include "unexpected_index_list"
+print(result["result"].get("unexpected_index_list"))

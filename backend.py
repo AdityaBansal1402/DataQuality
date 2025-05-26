@@ -12,6 +12,20 @@ from gem import GemBot, sys_text
 import great_expectations as ge
 from great_expectations.core.batch import RuntimeBatchRequest
 import ast
+import matplotlib.pyplot as plt
+from docx import Document
+from docx.shared import Inches
+import os
+import tempfile
+from fastapi.responses import FileResponse
+from fastapi import Request
+from fastapi.responses import StreamingResponse, JSONResponse
+from docx import Document
+from docx.shared import Inches
+import matplotlib.pyplot as plt
+import tempfile
+import os
+import io
 
 class dframe(BaseModel):
     df: pd.DataFrame
@@ -437,6 +451,73 @@ def smart_cast(value):
         # If it can't be parsed, return as-is (string)
         return value
 
+
+@app.post("/export-word")
+async def analyze_csv(request: Request):
+    try:
+        data = await request.json()
+        doc = Document()
+        doc.add_heading('Data Validation Report', 0)
+
+        for check in data:
+            doc.add_heading(f"{check['Expectation']} - Column: {check['Column']}", level=1)
+            doc.add_paragraph(f"Success: {check['Success']}")
+
+            if not check['Success']:
+                failed = check.get("Failed %", None)
+                passed = check.get("Passed %", None)
+
+                if failed is not None and passed is not None:
+                    doc.add_paragraph(f"Failed: {failed}%")
+                    doc.add_paragraph(f"Passed: {passed}%")
+
+                    labels = 'Passed', 'Failed'
+                    sizes = [passed, failed]
+                    colors = ['#4CAF50', '#F44336']
+
+                    fig, ax = plt.subplots()
+                    ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors, startangle=90)
+                    ax.axis('equal')
+                    plt.title(f"{check['Column']} - Pass/Fail Distribution")
+
+                    image_paths = []  # ⬅️ store paths to delete later
+
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
+                        plt.savefig(tmp_img.name)
+                        doc.add_picture(tmp_img.name, width=Inches(4))
+                        image_paths.append(tmp_img.name)  # ⬅️ mark for deletion after saving
+                        plt.close()
+
+                if "Sample Failures" in check:
+                    doc.add_heading("Sample Failures:", level=2)
+                    sample_failures = check["Sample Failures"]
+                    doc.add_paragraph(", ".join(map(str, sample_failures[:10])) + ("..." if len(sample_failures) > 10 else ""))
+
+                if "Failed Indices" in check:
+                    doc.add_heading("Failed Indices:", level=2)
+                    indices = check["Failed Indices"]
+                    doc.add_paragraph(", ".join(map(str, indices[:10])) + ("..." if len(indices) > 10 else ""))
+
+        # Save the doc into BytesIO instead of disk
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+
+        # Delete temp images now that save is complete
+        for path in image_paths:
+            try:
+                os.unlink(path)
+            except Exception as e:
+                print(f"Failed to delete temp image {path}: {e}")
+
+        return StreamingResponse(
+            file_stream,
+            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            headers={"Content-Disposition": "attachment; filename=validation_report.docx"}
+        )
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'success': False, "error": str(e)})
 
 @app.post("/analyze", response_class=JSONResponse)
 async def analyze_csv(file: UploadFile = File(...)):
